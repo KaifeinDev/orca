@@ -200,6 +200,12 @@ describe('connectPanePty', () => {
     expect(transport.serializeBuffer).toHaveBeenCalledTimes(1)
     expect(snapshotWritten()).toBe(false)
 
+    // A new drag that starts before the queued replay task runs must park it again.
+    ownerDocument.dispatchEvent(new Event('mouseup'))
+    terminalElement.dispatchEvent(mouseDown)
+    await flushAsyncTicks(20)
+    expect(snapshotWritten()).toBe(false)
+
     ownerDocument.dispatchEvent(new Event('mouseup'))
     await flushAsyncTicks(20)
 

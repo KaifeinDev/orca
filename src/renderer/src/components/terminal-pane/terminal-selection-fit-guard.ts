@@ -1,6 +1,7 @@
 import type { IDisposable } from '@xterm/xterm'
 
 const PRIMARY_BUTTON = 0
+const PRIMARY_BUTTONS_MASK = 1
 
 export type TerminalSelectionFitGuard = IDisposable & {
   isActive: () => boolean
@@ -33,14 +34,20 @@ export function installTerminalSelectionFitGuard(
     }
   }
 
+  // Why `buttons`: `button` names only the button that fired, so a secondary press or release during a primary drag would otherwise end the guard early.
+  const isPrimaryHeld = (event: Event, fallback: boolean): boolean =>
+    'buttons' in event && typeof event.buttons === 'number'
+      ? (event.buttons & PRIMARY_BUTTONS_MASK) !== 0
+      : fallback
+
   const handleMouseDown = (event: Event): void => {
-    active = 'button' in event && event.button === PRIMARY_BUTTON
+    active = isPrimaryHeld(event, 'button' in event && event.button === PRIMARY_BUTTON)
     if (!active) {
       resolveInactiveWaiters()
     }
   }
-  const handleMouseUp = (): void => {
-    if (!active) {
+  const handleMouseUp = (event: Event): void => {
+    if (!active || isPrimaryHeld(event, false)) {
       return
     }
     active = false

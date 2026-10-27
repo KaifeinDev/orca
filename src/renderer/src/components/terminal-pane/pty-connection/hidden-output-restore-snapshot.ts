@@ -101,6 +101,7 @@ export function bindHiddenOutputRestoreSnapshot(session: ConnectPanePtySession):
     const rowsBeforeReplay = session.pane.terminal.rows
     const hasSnapshotDimensions = hasPositiveTerminalDimensions(snapshot.cols, snapshot.rows)
     let skippedAltFrame = false
+    let parkedForDrag = false
     try {
       await session.structuralReplayCoordinator.run(
         async () => {
@@ -110,6 +111,11 @@ export function bindHiddenOutputRestoreSnapshot(session: ConnectPanePtySession):
             session.transport.getPtyId() !== scrollRestore.ptyId ||
             session.hiddenOutputRestoreGeneration !== scrollRestore.generation
           ) {
+            return
+          }
+          // Why: a drag can start while this task waits behind another replay; re-park without holding the presentation lock.
+          if (session.terminalSelectionFitGuard?.isActive()) {
+            parkedForDrag = true
             return
           }
           scrollRestore.started = true
@@ -195,6 +201,7 @@ export function bindHiddenOutputRestoreSnapshot(session: ConnectPanePtySession):
         },
         {
           shouldRestore: () =>
+            !parkedForDrag &&
             scrollRestore.valid &&
             !session.disposed &&
             session.transport.getPtyId() === scrollRestore.ptyId &&
@@ -273,6 +280,15 @@ export function bindHiddenOutputRestoreSnapshot(session: ConnectPanePtySession):
       if (session.hiddenOutputSnapshotScrollRestore === scrollRestore) {
         session.hiddenOutputSnapshotScrollRestore = null
       }
+    }
+    if (
+      parkedForDrag &&
+      scrollRestore.valid &&
+      !session.disposed &&
+      session.transport.getPtyId() === restorePtyId &&
+      session.hiddenOutputRestoreGeneration === restoreGeneration
+    ) {
+      await session.applyMainBufferSnapshot(snapshot)
     }
   }
 }

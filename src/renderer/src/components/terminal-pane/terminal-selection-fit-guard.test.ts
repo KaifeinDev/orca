@@ -68,4 +68,25 @@ describe('terminal selection fit guard', () => {
     guard.dispose()
     await expect(afterDispose).resolves.toBeUndefined()
   })
+
+  it('keeps a primary drag active across a secondary press and release', () => {
+    const { terminalElement, ownerDocument, guard, onSelectionEnd } = setup()
+    const withButtons = (type: string, button: number, buttons: number): Event => {
+      const event = new Event(type)
+      Object.defineProperty(event, 'button', { value: button })
+      Object.defineProperty(event, 'buttons', { value: buttons })
+      return event
+    }
+
+    terminalElement.dispatchEvent(withButtons('mousedown', 0, 1))
+    terminalElement.dispatchEvent(withButtons('mousedown', 2, 3))
+    expect(guard.isActive()).toBe(true)
+    ownerDocument.dispatchEvent(withButtons('mouseup', 2, 1))
+    expect(guard.isActive()).toBe(true)
+    expect(onSelectionEnd).not.toHaveBeenCalled()
+    ownerDocument.dispatchEvent(withButtons('mouseup', 0, 0))
+    expect(guard.isActive()).toBe(false)
+    expect(onSelectionEnd).toHaveBeenCalledOnce()
+    guard.dispose()
+  })
 })
