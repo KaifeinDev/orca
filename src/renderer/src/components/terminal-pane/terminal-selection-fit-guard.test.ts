@@ -43,4 +43,29 @@ describe('terminal selection fit guard', () => {
     expect(onSelectionEnd).not.toHaveBeenCalled()
     guard.dispose()
   })
+
+  it('resolves drag-end waiters on mouseup, blur, and dispose', async () => {
+    const { terminalElement, ownerDocument, ownerWindow, guard } = setup()
+    const settled = vi.fn()
+
+    await expect(guard.whenInactive()).resolves.toBeUndefined()
+
+    terminalElement.dispatchEvent(mouseEvent(0))
+    void guard.whenInactive().then(settled)
+    await Promise.resolve()
+    expect(settled).not.toHaveBeenCalled()
+    ownerDocument.dispatchEvent(new Event('mouseup'))
+    await Promise.resolve()
+    expect(settled).toHaveBeenCalledOnce()
+
+    terminalElement.dispatchEvent(mouseEvent(0))
+    const afterBlur = guard.whenInactive()
+    ownerWindow.dispatchEvent(new Event('blur'))
+    await expect(afterBlur).resolves.toBeUndefined()
+
+    terminalElement.dispatchEvent(mouseEvent(0))
+    const afterDispose = guard.whenInactive()
+    guard.dispose()
+    await expect(afterDispose).resolves.toBeUndefined()
+  })
 })

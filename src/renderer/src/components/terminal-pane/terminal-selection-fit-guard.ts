@@ -4,6 +4,8 @@ const PRIMARY_BUTTON = 0
 
 export type TerminalSelectionFitGuard = IDisposable & {
   isActive: () => boolean
+  /** Resolves once the current drag ends (mouseup, blur, or dispose); immediately when idle. */
+  whenInactive: () => Promise<void>
 }
 
 type SelectionElement = EventTarget & {
@@ -22,9 +24,20 @@ export function installTerminalSelectionFitGuard(
   const ownerDocument = terminalElement?.ownerDocument
   const ownerWindow = ownerDocument?.defaultView
   let active = false
+  let inactiveWaiters: (() => void)[] = []
+  const resolveInactiveWaiters = (): void => {
+    const waiters = inactiveWaiters
+    inactiveWaiters = []
+    for (const resolve of waiters) {
+      resolve()
+    }
+  }
 
   const handleMouseDown = (event: Event): void => {
     active = 'button' in event && event.button === PRIMARY_BUTTON
+    if (!active) {
+      resolveInactiveWaiters()
+    }
   }
   const handleMouseUp = (): void => {
     if (!active) {
@@ -32,9 +45,11 @@ export function installTerminalSelectionFitGuard(
     }
     active = false
     onSelectionEnd()
+    resolveInactiveWaiters()
   }
   const clear = (): void => {
     active = false
+    resolveInactiveWaiters()
   }
 
   if (terminalElement && typeof terminalElement.addEventListener === 'function') {
@@ -49,6 +64,8 @@ export function installTerminalSelectionFitGuard(
 
   return {
     isActive: () => active,
+    whenInactive: () =>
+      active ? new Promise<void>((resolve) => inactiveWaiters.push(resolve)) : Promise.resolve(),
     dispose: () => {
       clear()
       terminalElement?.removeEventListener?.('mousedown', handleMouseDown, true)

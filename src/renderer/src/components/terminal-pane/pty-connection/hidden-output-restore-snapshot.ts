@@ -85,6 +85,8 @@ export function bindHiddenOutputRestoreSnapshot(session: ConnectPanePtySession):
   }): Promise<void> {
     const restorePtyId = session.transport.getPtyId()
     const restoreGeneration = session.hiddenOutputRestoreGeneration
+    // Why: the replay clears scrollback (normal buffer) or swaps buffers (TUI), which shifts or drops an in-progress drag selection and eats a mouse-mode TUI's drag reports; the validity check below drops a replay that went stale while parked.
+    await session.terminalSelectionFitGuard?.whenInactive()
     if (session.hiddenOutputSnapshotScrollRestore) {
       session.cancelSnapshotScrollRestore()
     }
